@@ -27,6 +27,63 @@ Run the system check script to print CPU, RAM, GPU, and ROCm status:
 
 This runs `rocm-smi` (and optionally `rocminfo`). Ensure ROCm is installed and the GPU is visible when using GPU workloads.
 
+### If ROCm is not installed (HX99G)
+
+The following steps target **Minisforum HX99G** (and similar AMD systems). If your system already has ROCm, skip to [Setup](#setup).
+
+**Install essentials and a supported kernel**
+
+```bash
+sudo apt update && sudo apt upgrade
+sudo apt-get install neofetch htop wget curl
+sudo apt install linux-image-generic
+sudo add-apt-repository ppa:danielrichter2007/grub-customizer
+sudo apt install grub-customizer
+```
+
+- Launch **Grub Customizer** → **General** tab → set default entry to **Advanced options for Ubuntu** → **Ubuntu, with Linux x.x.x-x-generic** → Save → `sudo reboot`
+- Boot into that kernel, then install headers:
+
+```bash
+sudo apt install "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
+```
+
+**Add users to render/video groups**
+
+```bash
+sudo usermod -a -G render,video $LOGNAME
+echo 'ADD_EXTRA_GROUPS=1' | sudo tee -a /etc/adduser.conf
+echo 'EXTRA_GROUPS=video' | sudo tee -a /etc/adduser.conf
+echo 'EXTRA_GROUPS=render' | sudo tee -a /etc/adduser.conf
+```
+
+**Install AMDGPU and ROCm**
+
+```bash
+sudo apt update
+wget https://repo.radeon.com/amdgpu-install/6.1.3/ubuntu/focal/amdgpu-install_6.1.60103-1_all.deb
+sudo apt install ./amdgpu-install_6.1.60103-1_all.deb
+sudo amdgpu-install --no-dkms --usecase=hiplibsdk,rocm
+sudo rocminfo
+sudo reboot
+```
+
+**Environment (if you hit unsupported-GPU errors)**
+
+Set as needed for your GPU (example for older GFX):
+
+```bash
+export HSA_OVERRIDE_GFX_VERSION=10.3.0
+```
+
+**Uninstall (if needed)**
+
+```bash
+amdgpu-install --uninstall
+```
+
+Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5ef673302a8e653863b6eaedc90).
+
 ## Setup
 
 1. Copy env example and edit:
