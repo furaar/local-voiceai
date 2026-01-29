@@ -17,7 +17,8 @@ For AMD RX 6600 (gfx1050) with ROCm, set before running:
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 ```
 
-## System and ROCm check
+<details>
+<summary><strong>System and ROCm check</strong></summary>
 
 Run the system check script to print CPU, RAM, GPU, and ROCm status:
 
@@ -27,7 +28,8 @@ Run the system check script to print CPU, RAM, GPU, and ROCm status:
 
 This runs `rocm-smi` (and optionally `rocminfo`). Ensure ROCm is installed and the GPU is visible when using GPU workloads.
 
-### If ROCm is not installed (HX99G)
+<details>
+<summary><strong>If ROCm is not installed (HX99G)</strong></summary>
 
 The following steps target **Minisforum HX99G** (and similar AMD systems). If your system already has ROCm, skip to [Setup](#setup).
 
@@ -83,6 +85,10 @@ amdgpu-install --uninstall
 ```
 
 Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5ef673302a8e653863b6eaedc90).
+
+</details>
+
+</details>
 
 ## Setup
 
