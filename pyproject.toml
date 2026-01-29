@@ -14,6 +14,7 @@ dependencies = [
     "requests",
     "kokoro>=0.9.4",
     "soundfile",
+    "pip>=25.3",
 ]
 
 [project.optional-dependencies]
