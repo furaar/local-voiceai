@@ -1,0 +1,23 @@
+[project]
+name = "pipecat-voice-agent"
+version = "0.1.0"
+description = "Local Pipecat CLI voice agent (Silero VAD, Whisper, LM Studio, TTS)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pipecat-ai[local]",
+    "pipecat-ai[silero]",
+    "pipecat-ai[whisper]",
+    "pipecat-ai[openai]",
+    "pipecat-ai[runner]",
+    "python-dotenv",
+    "requests",
+    "kokoro>=0.9.4",
+    "soundfile",
+]
+
+[project.optional-dependencies]
+xtts = ["pipecat-ai[xtts]"]
+dev = []
+
+# Script-only app: no package to build; run with uv run python bot.py
