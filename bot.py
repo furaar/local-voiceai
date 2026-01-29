@@ -94,11 +94,14 @@ async def run_bot(transport):
 
 async def _run_pipeline(transport, stt, llm, tts):
     from loguru import logger
+    import time
     from pipecat.frames.frames import (
         LLMFullResponseEndFrame,
         LLMRunFrame,
         LLMTextFrame,
         TranscriptionFrame,
+        TTSAudioRawFrame,
+        TTSStoppedFrame,
     )
     from pipecat.observers.base_observer import BaseObserver, FramePushed
     from pipecat.pipeline.pipeline import Pipeline
@@ -108,14 +111,21 @@ async def _run_pipeline(transport, stt, llm, tts):
     from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 
     class DevLogObserver(BaseObserver):
-        """Log Whisper transcriptions and LLM generations to console (no pipeline change)."""
+        """Log Whisper transcriptions, LLM generations, and per-request latency (no pipeline change)."""
         def __init__(self):
             super().__init__()
             self._llm_buffer = []
+            self._request_start: float | None = None
+            self._first_audio_time: float | None = None
+            self._first_audio_seen = False
 
         async def on_push_frame(self, data: FramePushed):
             frame = data.frame
+            now = time.monotonic()
             if isinstance(frame, TranscriptionFrame):
+                self._request_start = now
+                self._first_audio_time = None
+                self._first_audio_seen = False
                 logger.info(f"dev | Whisper: {frame.text!r}")
             elif isinstance(frame, LLMTextFrame):
                 self._llm_buffer.append(frame.text)
@@ -124,6 +134,19 @@ async def _run_pipeline(transport, stt, llm, tts):
                 if full:
                     logger.info(f"dev | LLM: {full!r}")
                 self._llm_buffer.clear()
+            elif isinstance(frame, TTSAudioRawFrame) and self._request_start is not None and not self._first_audio_seen:
+                self._first_audio_time = now
+                self._first_audio_seen = True
+            elif isinstance(frame, TTSStoppedFrame) and self._request_start is not None:
+                total_ms = (now - self._request_start) * 1000
+                first_ms = (self._first_audio_time - self._request_start) * 1000 if self._first_audio_time is not None else None
+                if first_ms is not None:
+                    logger.info(f"dev | latency: first_audio={first_ms:.0f}ms total={total_ms:.0f}ms")
+                else:
+                    logger.info(f"dev | latency: total={total_ms:.0f}ms (no audio)")
+                self._request_start = None
+                self._first_audio_time = None
+                self._first_audio_seen = False
 
     # System + initial user so roles alternate (user/assistant). Stops "Conversation roles must alternate" after first reply.
     messages = [
