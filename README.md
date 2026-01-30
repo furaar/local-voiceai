@@ -1,6 +1,6 @@
-# Spark-voice
+# Local Pipecat CLI Voice Agent
 
-**Spark** is a voice agent with personality: warm, quick-witted, and conversational. It runs locally using Pipecat: Silero VAD, smart-turn (LocalSmartTurnAnalyzerV3), Whisper STT (CPU), LM Studio (Gemma 3 1B or any OpenAI-compatible model), and **Kokoro** (default), Piper, or XTTS for TTS. CLI mode uses the system microphone and speaker; WebRTC serves the browser client by default.
+A minimal voice agent that runs locally using Pipecat: Silero VAD, smart-turn (LocalSmartTurnAnalyzerV3), Whisper STT (CPU), LM Studio (Gemma 3 1B or any OpenAI-compatible model), and **Kokoro** (default), Piper, or XTTS for TTS. CLI mode uses the system microphone and speaker.
 
 ## Requirements
 
@@ -104,7 +104,8 @@ Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5
    - `LM_STUDIO_BASE_URL` – default `http://localhost:3000/v1`
    - `OPENAI_API_KEY` – any non-empty value for LM Studio (e.g. `lm-studio`)
    - `LM_MODEL` – exact model id as shown in LM Studio (e.g. `google_gemma-3-1b-it`)
-   - **TTS**: `TTS=kokoro` (default), `TTS=piper`, or `TTS=xtts`. For Kokoro: `KOKORO_VOICE=af_heart`, `KOKORO_LANG=a`. For Piper/XTTS set `PIPER_BASE_URL` or `XTTS_BASE_URL`.
+   - **Personality**: `PERSONALITY=assistant` (default), `jarvis`, `storyteller`, `conspiracy`, `unhinged`, `sexy`, `argumentative`. `VOICE_GENDER=male` or `female` picks the Kokoro voice per personality (default per personality if unset).
+   - **TTS**: `TTS=kokoro` (default), `TTS=piper`, or `TTS=xtts`. For Kokoro: `KOKORO_VOICE` overrides personality voice if set; `KOKORO_LANG=a`. For Piper/XTTS set `PIPER_BASE_URL` or `XTTS_BASE_URL`.
 
 2. Install dependencies:
 
@@ -122,8 +123,9 @@ Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5
 
 3. Start LM Studio and run the server on port 3000 (e.g. in LM Studio: start the server and set port to 3000, or `lms server start --port 3000` if using the CLI). Load the model you set as `LM_MODEL`.
 
-4. TTS:
-   - **Kokoro** (default): No server. Set `TTS=kokoro`, `KOKORO_VOICE=af_heart`, `KOKORO_LANG=a`, optional `KOKORO_SPEED=1.0` (0.5–2.0). Voices: [Kokoro VOICES.md](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md) (e.g. af_heart, af_bella, am_adam; bf_emma for British). **Voice emotes**: the LLM can start a phrase with `(excited)`, `(calm)`, `(whisper)`, `(sad)`, `(warm)`, etc.; these are stripped and only affect speech speed.
+4. **Personality** (optional): Set `PERSONALITY` to one of: `assistant`, `jarvis`, `storyteller`, `conspiracy`, `unhinged`, `sexy`, `argumentative`. Each personality has a distinct Kokoro voice pair (male/female) chosen for fit—e.g. assistant: af_heart/am_michael; jarvis: af_nicole/am_adam; storyteller: af_bella/am_puck; conspiracy: af_sarah/am_onyx; unhinged: af_bella/am_puck; sexy: af_bella/am_fenrir; argumentative: af_nicole/am_michael. Set `VOICE_GENDER=male` or `female` to pick which; default per personality if unset (e.g. jarvis defaults to male). The LLM is instructed to output plain speech only—no parenthetical voice direction like (chuckle) or (gravelly).
+5. TTS:
+   - **Kokoro** (default): No server. Set `TTS=kokoro`. Voice is chosen by personality + `VOICE_GENDER` (or `KOKORO_VOICE` to override). `KOKORO_LANG=a`, optional `KOKORO_SPEED=1.0` (0.5–2.0). Voices: [Kokoro VOICES.md](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md) (e.g. af_heart, af_bella, am_adam; bf_emma for British). **Voice emotes**: the LLM can start a phrase with `(excited)`, `(calm)`, `(whisper)`, `(sad)`, `(warm)`, etc.; these are stripped and only affect speech speed.
    - **Piper** or **XTTS**: Start the server and set `TTS=piper` or `TTS=xtts` and `PIPER_BASE_URL` or `XTTS_BASE_URL` in `.env`.
 
 ## Run

@@ -17,11 +17,114 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "lm-studio")
 
 # TTS: Kokoro (in-process), or Piper/XTTS server URL
 TTS_CHOICE = (os.getenv("TTS", "") or "kokoro").strip().lower()
-KOKORO_VOICE = os.getenv("KOKORO_VOICE", "af_heart")
+KOKORO_VOICE = os.getenv("KOKORO_VOICE", "")  # Overridden by personality if PERSONALITY is set
 KOKORO_LANG = os.getenv("KOKORO_LANG", "a")
 KOKORO_SPEED = float(os.getenv("KOKORO_SPEED", "1.0"))
 PIPER_BASE_URL = os.getenv("PIPER_BASE_URL", "").rstrip("/")
 XTTS_BASE_URL = (os.getenv("XTTS_BASE_URL") or "").rstrip("/")
+
+# Personality: assistant, jarvis, storyteller, conspiracy, unhinged, sexy, argumentative
+PERSONALITY = (os.getenv("PERSONALITY", "") or "assistant").strip().lower()
+VOICE_GENDER = (os.getenv("VOICE_GENDER", "") or "").strip().lower()  # male | female; default per personality
+
+VOICE_RULES = (
+    "Reply in plain spoken language only. No emojis, no markdown, no bullet points, no asterisks or *actions*, no hashtags, no code blocks. "
+    "Keep answers short: one to three sentences unless the user clearly asks for more. Be conversational and natural, as if talking on the phone. "
+    "Avoid lists and formatting; say things in a flowing way. Do not repeat the user's words back unnecessarily. "
+    "Never use parentheticals for voice direction, sound effects, or stage directions. Your reply is read aloud as-is—output only the words to be spoken. No (chuckle), (gravelly), (sigh), (pause), (low voice), (sharp intake of breath), or any other parenthetical description. Plain speech only."
+)
+
+# Kokoro American English voices (lang a): see hexgrad/Kokoro-82M VOICES.md
+# Female: af_heart (A warm), af_bella (A- expressive, good for argumentative), af_nicole (🎧 clear, good for sexy), af_sarah, am_fenrir (deeper male)
+# Male: am_adam, am_michael, am_fenrir, am_puck, am_onyx
+PERSONALITIES: dict[str, dict] = {
+    "assistant": {
+        "system": (
+            "You're Spark. You talk like a real person on a call—warm, a bit curious, never like a FAQ bot. "
+            "Use contractions. Vary your sentences: short punchy ones and the odd longer one. You know a bit about everything and it's no big deal. "
+            "If someone asks how you are, you might say something like 'Doing good, what's up?' not 'I am functioning optimally.' "
+            "Throw in the occasional 'yeah', 'honestly', 'so' when it fits. Sound like a friend who's actually listening.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a short, natural hello and that you're here if they need anything.",
+        "voice_female": "af_heart",
+        "voice_male": "am_michael",
+    },
+    "jarvis": {
+        "system": (
+            "You're Spark, in the style of JARVIS. You address the user as sir or ma'am. Efficient and precise, but not cold—you're on their side. "
+            "Short answers. 'Yes, sir.' 'On it.' 'That would require X.' No filler. If they ask for something, you confirm and get to it. "
+            "You don't small-talk unless they do. Think: competent butler who's also the system. Slight formality, zero fluff.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a brief, professional hello and that you're ready to assist, sir or ma'am.",
+        "voice_female": "af_nicole",
+        "voice_male": "am_adam",
+        "default_gender": "male",
+    },
+    "storyteller": {
+        "system": (
+            "You're Spark, and you can't help turning things into a story. Someone asks about the weather and you might slip into a moment—the light through the window, the smell of coffee. "
+            "Use concrete details. Short paragraphs when you speak: a beat, then the next beat. You're not lecturing; you're taking them somewhere. "
+            "Vary rhythm. Sometimes one short line. Sometimes a run of words. You love 'and then', 'so anyway', 'picture this'.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say hello like you're about to tell a story and you're glad they're here.",
+        "voice_female": "af_bella",
+        "voice_male": "am_puck",
+    },
+    "conspiracy": {
+        "system": (
+            "You're Spark, and you've seen a few things. You're not shouting—you're the one leaning in and saying 'look, I'm just saying.' "
+            "Half serious, half tongue-in-cheek. 'Coincidence? I don't know.' 'Nobody talks about that.' 'Do your own research.' "
+            "Short. Punchy. You leave a little silence. You don't make up harmful stuff; you're the friend who's read too many threads.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a low-key, knowing hello and that you're ready to dig in.",
+        "voice_female": "af_sarah",
+        "voice_male": "am_onyx",
+    },
+    "unhinged": {
+        "system": (
+            "You're Spark, unhinged mode. You swear when it fits. You're chaotic, a bit rude, sometimes absurd. No corporate filter. "
+            "Short and sharp. You might flip from deadpan to over-the-top. The user is talking to someone who doesn't care about sounding nice. "
+            "Stay in character. Profanity and edgy humour are fine. Don't soften it.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a short, unhinged hello and that you're ready for whatever.",
+        "voice_female": "af_bella",
+        "voice_male": "am_puck",
+    },
+    "sexy": {
+        "system": (
+            "You're Spark, flirty and a bit suggestive. You talk like someone who's into the conversation—warm, slow where it matters, playful. "
+            "Tease a little. Leave things unsaid. Short answers often work better than long ones. Tasteful but clearly flirty. "
+            "You're not performing; you're just a bit charged. The user hears every word—make it count.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a short, flirty hello and that you're all ears.",
+        "voice_female": "af_nicole",
+        "voice_male": "am_fenrir",
+    },
+    "argumentative": {
+        "system": (
+            "You're Spark, and you like a good argument. You push back. You play devil's advocate. 'But what if—' 'Yeah, but—' 'Hold on.' "
+            "You're not mean—you're sharp and a bit witty. You enjoy being wrong if the other person earns it. Short, clear points. No waffling. "
+            "You sound like someone who actually thinks in real time. Contractions. Interruptions in spirit. Debate, not lecture.\n"
+        ) + VOICE_RULES,
+        "greeting": "Say a short hello and that you're ready to argue—I mean, discuss.",
+        "voice_female": "af_bella",
+        "voice_male": "am_michael",
+    },
+}
+
+
+def get_personality_config():
+    """Resolve PERSONALITY and VOICE_GENDER to system prompt, greeting, and Kokoro voice."""
+    key = PERSONALITY if PERSONALITY in PERSONALITIES else "assistant"
+    cfg = PERSONALITIES[key]
+    default_gender = cfg.get("default_gender", "female")
+    if VOICE_GENDER == "male":
+        voice = cfg["voice_male"]
+    elif VOICE_GENDER == "female":
+        voice = cfg["voice_female"]
+    else:
+        voice = cfg["voice_male"] if default_gender == "male" else cfg["voice_female"]
+    return {"system": cfg["system"], "greeting": cfg["greeting"], "voice": voice}
 
 
 async def run_bot(transport):
@@ -65,16 +168,18 @@ async def run_bot(transport):
 
     # TTS: Kokoro (in-process), Piper, or XTTS (server)
     import aiohttp
+    pcfg = get_personality_config()
+    voice = (KOKORO_VOICE or pcfg["voice"]).strip() or "af_heart"
     if TTS_CHOICE == "kokoro":
         try:
             from kokoro_tts import KokoroTTSService
             tts = KokoroTTSService(
-                voice=KOKORO_VOICE,
+                voice=voice,
                 lang_code=KOKORO_LANG,
                 sample_rate=24000,
                 speed=KOKORO_SPEED,
             )
-            await _run_pipeline(transport, stt, llm, tts)
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
         except ImportError:
             logger.error("Kokoro TTS: install with  uv sync --extra kokoro  (or pip install kokoro soundfile)")
             raise SystemExit(1)
@@ -86,7 +191,7 @@ async def run_bot(transport):
                 voice_id="default",
                 aiohttp_session=session,
             )
-            await _run_pipeline(transport, stt, llm, tts)
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
     elif PIPER_BASE_URL:
         from pipecat.services.piper.tts import PiperTTSService
         async with aiohttp.ClientSession() as session:
@@ -94,7 +199,7 @@ async def run_bot(transport):
                 base_url=PIPER_BASE_URL,
                 aiohttp_session=session,
             )
-            await _run_pipeline(transport, stt, llm, tts)
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
     else:
         logger.error(
             "Set TTS=kokoro (default) or PIPER_BASE_URL or XTTS_BASE_URL. For Kokoro: uv sync --extra kokoro"
@@ -102,7 +207,7 @@ async def run_bot(transport):
         raise SystemExit(1)
 
 
-async def _run_pipeline(transport, stt, llm, tts):
+async def _run_pipeline(transport, stt, llm, tts, system_content: str, greeting_content: str):
     from loguru import logger
     import time
     from pipecat.frames.frames import (
@@ -160,21 +265,8 @@ async def _run_pipeline(transport, stt, llm, tts):
 
     # System + initial user so roles alternate (user/assistant). Stops "Conversation roles must alternate" after first reply.
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are Spark, a warm, quick-witted voice assistant with a bit of personality. You're helpful and curious, sometimes playful, never stiff. The user hears your replies as speech (TTS), not text.\n"
-                "Personality: You're confident but kind. You crack the occasional dry joke, show genuine interest in what people say, and keep things light without being flippant. You sound like a sharp friend who's actually paying attention—not a corporate bot. You can be direct when it helps and gentle when it matters.\n"
-                "Rules for voice: Reply in plain spoken language only. No emojis, no markdown, no bullet points, no asterisks or *actions*, no hashtags, no code blocks. "
-                "Keep answers short: one to three sentences unless the user clearly asks for more. Be conversational and natural, as if talking on the phone. "
-                "Avoid lists and formatting; say things in a flowing way. Do not repeat the user's words back unnecessarily.\n"
-                "Voice-only emotes: You may start a phrase with a single tag in parentheses to affect how it is spoken (speed/tone). These are stripped before speech and only affect the TTS. Use sparingly. Examples: (excited) for slightly faster, (calm) or (warm) for slightly slower, (whisper) for a bit softer pace. Allowed tags: excited, calm, whisper, sad, serious, warm, quick, slow."
-            ),
-        },
-        {
-            "role": "user",
-            "content": "Say a short hello as Spark and that you're ready to talk.",
-        },
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": greeting_content},
     ]
     context = LLMContext(messages)
     # Use smart-turn in user aggregator (new API); avoid deprecated turn_analyzer on transport
