@@ -1,8 +1,11 @@
 """
-Local Pipecat CLI voice agent.
-Run with: python bot.py --local  (CLI, mic/speaker)
-Or with runner: python bot.py -t webrtc  (web client)
+Spark — Pipecat CLI voice agent.
+  spark --local           # CLI mic/speaker (reads .env)
+  spark -t webrtc        # Web client
+  spark -i               # Interactive: pick personality, mode, speed, then run
+  spark --personality jarvis --speed 1.2  # Override env
 """
+import argparse
 import os
 import sys
 
@@ -125,6 +128,90 @@ def get_personality_config():
     else:
         voice = cfg["voice_male"] if default_gender == "male" else cfg["voice_female"]
     return {"system": cfg["system"], "greeting": cfg["greeting"], "voice": voice}
+
+
+def print_banner():
+    """Print a short banner for the CLI."""
+    print()
+    print("  ╭─────────────────────────────╮")
+    print("  │  Spark — Pipecat voice agent │")
+    print("  │  -i interactive  --local CLI │")
+    print("  ╰─────────────────────────────╯")
+    print()
+
+
+def _reload_config_from_env():
+    """Re-read overridable config from os.environ into module globals."""
+    global PERSONALITY, KOKORO_SPEED, VOICE_GENDER
+    PERSONALITY = (os.getenv("PERSONALITY", "") or "assistant").strip().lower()
+    try:
+        KOKORO_SPEED = float(os.getenv("KOKORO_SPEED", "1.0"))
+    except ValueError:
+        KOKORO_SPEED = 1.0
+    VOICE_GENDER = (os.getenv("VOICE_GENDER", "") or "").strip().lower()
+
+
+def run_interactive():
+    """Interactive prompts: personality, mode, speed, voice gender. Sets os.environ."""
+    print_banner()
+    personality_keys = list(PERSONALITIES)
+    print("Personality:")
+    for i, key in enumerate(personality_keys, 1):
+        print(f"  {i}) {key}")
+    default_p = (os.getenv("PERSONALITY", "") or "assistant").strip().lower()
+    default_idx = personality_keys.index(default_p) + 1 if default_p in personality_keys else 1
+    while True:
+        raw = input(f"Choose [1-{len(personality_keys)}] (default {default_idx}): ").strip() or str(default_idx)
+        if raw.isdigit() and 1 <= int(raw) <= len(personality_keys):
+            os.environ["PERSONALITY"] = personality_keys[int(raw) - 1]
+            break
+        if raw.lower() in personality_keys:
+            os.environ["PERSONALITY"] = raw.lower()
+            break
+        print("Invalid. Enter a number or personality name.")
+
+    print("\nMode:")
+    print("  1) Local (mic/speaker)")
+    print("  2) WebRTC (browser)")
+    mode_raw = input("Choose [1-2] (default 1): ").strip() or "1"
+    run_local_mode = mode_raw != "2"
+
+    default_speed = os.getenv("KOKORO_SPEED", "1.0")
+    while True:
+        speed_raw = input(f"\nSpeech speed 0.5–2.0 (default {default_speed}): ").strip() or default_speed
+        try:
+            s = float(speed_raw)
+            if 0.5 <= s <= 2.0:
+                os.environ["KOKORO_SPEED"] = speed_raw
+                break
+        except ValueError:
+            pass
+        print("Enter a number between 0.5 and 2.0.")
+
+    print("\nVoice gender: male / female / default (per personality)")
+    voice_raw = input("Choose (default: default): ").strip().lower()
+    if voice_raw in ("male", "female"):
+        os.environ["VOICE_GENDER"] = voice_raw
+    else:
+        os.environ.pop("VOICE_GENDER", None)
+
+    return run_local_mode
+
+
+def parse_args(argv=None):
+    """Parse CLI args; return (args, remaining_argv for runner)."""
+    p = argparse.ArgumentParser(
+        description="Spark — Pipecat voice agent. Use -i for interactive setup.",
+        prog="spark",
+    )
+    p.add_argument("-i", "--interactive", action="store_true", help="Interactive: pick personality, mode, speed, then run")
+    p.add_argument("--local", action="store_true", help="Run with local mic/speaker (CLI)")
+    p.add_argument("-t", "--transport", choices=("webrtc", "daily"), default=None, help="Transport for web (default: webrtc)")
+    p.add_argument("--personality", type=str, default=None, metavar="NAME", help="Override PERSONALITY (e.g. jarvis)")
+    p.add_argument("--speed", type=float, default=None, metavar="FLOAT", help="Override KOKORO_SPEED (0.5–2.0)")
+    p.add_argument("--voice-gender", type=str, default=None, choices=("male", "female"), metavar="GENDER", help="Override VOICE_GENDER")
+    args, remaining = p.parse_known_args(argv)
+    return args, remaining
 
 
 async def run_bot(transport):
@@ -356,16 +443,45 @@ async def bot(runner_args):
 
 
 def main():
-    if "--local" in sys.argv:
-        import asyncio
+    import asyncio
+
+    args, remaining = parse_args()
+
+    if args.interactive:
+        run_local_mode = run_interactive()
+        # Apply any CLI overrides on top of interactive choices
+        if args.personality is not None:
+            os.environ["PERSONALITY"] = args.personality.strip().lower()
+        if args.speed is not None and 0.5 <= args.speed <= 2.0:
+            os.environ["KOKORO_SPEED"] = str(args.speed)
+        if args.voice_gender is not None:
+            os.environ["VOICE_GENDER"] = args.voice_gender
+        _reload_config_from_env()
+        if run_local_mode:
+            asyncio.run(run_local())
+            return
+        # Interactive chose webrtc: delegate to runner with -t webrtc
+        sys.argv = [sys.argv[0], "-t", "webrtc"] + remaining
+        from pipecat.runner.run import main as runner_main
+        runner_main()
+        return
+
+    # Non-interactive: apply CLI overrides to env
+    if args.personality is not None:
+        os.environ["PERSONALITY"] = args.personality.strip().lower()
+    if args.speed is not None and 0.5 <= args.speed <= 2.0:
+        os.environ["KOKORO_SPEED"] = str(args.speed)
+    if args.voice_gender is not None:
+        os.environ["VOICE_GENDER"] = args.voice_gender
+    _reload_config_from_env()
+
+    if args.local:
         asyncio.run(run_local())
         return
 
-    # Default to WebRTC when no transport specified (-t webrtc | daily)
-    if "-t" not in sys.argv and "--transport" not in sys.argv:
-        sys.argv[1:1] = ["-t", "webrtc"]
-
-    # Use Pipecat development runner for webrtc/daily/telephony
+    # Default to WebRTC when no transport specified
+    transport = args.transport or "webrtc"
+    sys.argv = [sys.argv[0], "-t", transport] + remaining
     from pipecat.runner.run import main as runner_main
     runner_main()
 
