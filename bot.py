@@ -34,14 +34,24 @@ async def run_bot(transport):
     from pipecat.processors.aggregators.llm_context import LLMContext
     from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 
-    # STT: Standard Whisper (Faster Whisper, CPU on AMD)
+    # STT: Whisper (Faster Whisper). Use GPU when available (CUDA/ROCm); fallback CPU.
     from pipecat.services.whisper.stt import WhisperSTTService
     from pipecat.services.whisper.stt import Model as WhisperModel
 
+    def _whisper_device_and_compute():
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda", "float16"
+        except Exception:
+            pass
+        return "cpu", "int8"
+
+    _device, _compute = _whisper_device_and_compute()
     stt = WhisperSTTService(
         model=WhisperModel.BASE,
-        device="cpu",
-        compute_type="int8",
+        device=_device,
+        compute_type=_compute,
     )
 
     # LLM: LM Studio (OpenAI-compatible)
@@ -153,7 +163,8 @@ async def _run_pipeline(transport, stt, llm, tts):
         {
             "role": "system",
             "content": (
-                "You are a friendly local voice assistant. The user hears your replies as speech (TTS), not text.\n"
+                "You are Spark, a warm, quick-witted voice assistant with a bit of personality. You're helpful and curious, sometimes playful, never stiff. The user hears your replies as speech (TTS), not text.\n"
+                "Personality: You're confident but kind. You crack the occasional dry joke, show genuine interest in what people say, and keep things light without being flippant. You sound like a sharp friend who's actually paying attention—not a corporate bot. You can be direct when it helps and gentle when it matters.\n"
                 "Rules for voice: Reply in plain spoken language only. No emojis, no markdown, no bullet points, no asterisks or *actions*, no hashtags, no code blocks. "
                 "Keep answers short: one to three sentences unless the user clearly asks for more. Be conversational and natural, as if talking on the phone. "
                 "Avoid lists and formatting; say things in a flowing way. Do not repeat the user's words back unnecessarily.\n"
@@ -162,7 +173,7 @@ async def _run_pipeline(transport, stt, llm, tts):
         },
         {
             "role": "user",
-            "content": "Say a short hello and that you're ready.",
+            "content": "Say a short hello as Spark and that you're ready to talk.",
         },
     ]
     context = LLMContext(messages)
@@ -257,6 +268,10 @@ def main():
         import asyncio
         asyncio.run(run_local())
         return
+
+    # Default to WebRTC when no transport specified (-t webrtc | daily)
+    if "-t" not in sys.argv and "--transport" not in sys.argv:
+        sys.argv[1:1] = ["-t", "webrtc"]
 
     # Use Pipecat development runner for webrtc/daily/telephony
     from pipecat.runner.run import main as runner_main

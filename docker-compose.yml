@@ -1,0 +1,22 @@
+# Spark-voice: WebRTC client at http://localhost:7860/client
+# LM Studio must be running on the host (e.g. port 3000). GPU is passed through for Whisper/acceleration.
+services:
+  spark-voice:
+    build: .
+    image: spark-voice:latest
+    container_name: spark-voice
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    environment:
+      - LM_STUDIO_BASE_URL=http://host.docker.internal:3000/v1
+      # AMD ROCm: set in .env for older GPUs (e.g. RX 6600) so GPU is used: HSA_OVERRIDE_GFX_VERSION=10.3.0
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # AMD ROCm: direct device passthrough. Comment out for CPU-only.
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    restart: unless-stopped

@@ -1,6 +1,6 @@
-# Local Pipecat CLI Voice Agent
+# Spark-voice
 
-A minimal voice agent that runs locally using Pipecat: Silero VAD, smart-turn (LocalSmartTurnAnalyzerV3), Whisper STT (CPU), LM Studio (Gemma 3 1B or any OpenAI-compatible model), and **Kokoro** (default), Piper, or XTTS for TTS. CLI mode uses the system microphone and speaker.
+**Spark** is a voice agent with personality: warm, quick-witted, and conversational. It runs locally using Pipecat: Silero VAD, smart-turn (LocalSmartTurnAnalyzerV3), Whisper STT (CPU), LM Studio (Gemma 3 1B or any OpenAI-compatible model), and **Kokoro** (default), Piper, or XTTS for TTS. CLI mode uses the system microphone and speaker; WebRTC serves the browser client by default.
 
 ## Requirements
 
@@ -128,25 +128,25 @@ Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5
 
 ## Run
 
-**CLI (local mic and speaker):**
+**Web client (default)** – `python bot.py` with no args starts WebRTC; open http://localhost:7860/client:
 
 ```bash
-uv run python bot.py --local
+uv run python bot.py
 ```
 
-Or:
-
-```bash
-python bot.py --local
-```
-
-**Web client (same bot, browser UI):**
+Or explicitly:
 
 ```bash
 uv run python bot.py -t webrtc
 ```
 
-Then open http://localhost:7860/client in your browser. For this you may need `pipecat-ai[webrtc]`.
+Install the web transport with `uv sync --extra webrtc` if needed.
+
+**CLI (local mic and speaker):**
+
+```bash
+uv run python bot.py --local
+```
 
 **Daily (production-style):**
 
@@ -156,11 +156,28 @@ uv run python bot.py -t daily
 
 Requires `DAILY_API_KEY` and `pipecat-ai[daily]`. See [UPGRADE.md](UPGRADE.md) for moving to GUI/web.
 
+**Docker** – WebRTC by default; client at http://localhost:7860/client:
+
+```bash
+docker build -t spark-voice .
+docker run -p 7860:7860 -e LM_STUDIO_BASE_URL=http://host.docker.internal:3000/v1 -e OPENAI_API_KEY=lm-studio -e LM_MODEL=google_gemma-3-1b-it spark-voice
+```
+
+Ensure LM Studio is running on the host (port 3000). Use `--add-host=host.docker.internal:host-gateway` on Linux if `host.docker.internal` is not available.
+
+**Docker Compose** – Same as above with GPU passthrough and ports 7860 exposed; uses `.env` and `host.docker.internal` for LM Studio:
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:7860/client. The Compose file passes through the GPU via AMD ROCm device passthrough (`/dev/kfd`, `/dev/dri`). For CPU-only, comment out the `devices` section in `docker-compose.yml`. The image runs the runner with `--host 0.0.0.0` so the connection is reachable from the host. For AMD GPUs (e.g. RX 6600), set `HSA_OVERRIDE_GFX_VERSION=10.3.0` in `.env` so ROCm can use the device. Whisper uses the GPU when PyTorch sees a CUDA/ROCm device; for full GPU on AMD you may need a ROCm-built PyTorch image.
+
 ## Pipeline
 
 - **Input**: LocalAudioTransport (CLI) or WebRTC/Daily (web).
 - **VAD / turn**: Silero VAD + LocalSmartTurnAnalyzerV3 (smart-turn-v3).
-- **STT**: Whisper (Faster Whisper, CPU).
+- **STT**: Whisper (Faster Whisper); GPU when available (CUDA/ROCm), else CPU.
 - **LLM**: LM Studio via OpenAI-compatible API.
 - **TTS**: Kokoro (in-process), or Piper/XTTS (HTTP server).
 - **Output**: Same transport (speaker or browser).
