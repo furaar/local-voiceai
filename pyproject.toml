@@ -10,6 +10,7 @@ dependencies = [
     "pipecat-ai[whisper]",
     "pipecat-ai[openai]",
     "pipecat-ai[runner]",
+    "pipecat-ai[webrtc]",
     "python-dotenv",
     "requests",
     "kokoro>=0.9.4",
@@ -22,4 +23,7 @@ webrtc = ["pipecat-ai[webrtc]"]
 xtts = ["pipecat-ai[xtts]"]
 dev = []
 
-# Script-only app: no package to build; run with uv run python bot.py
+[project.scripts]
+spark = "bot:main"
+
+# Script-only app: run with uv run python bot.py or uv run spark

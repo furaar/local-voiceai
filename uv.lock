@@ -4171,7 +4171,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "kokoro" },
     { name = "pip" },
-    { name = "pipecat-ai", extra = ["local", "openai", "runner", "silero", "whisper"] },
+    { name = "pipecat-ai", extra = ["local", "openai", "runner", "silero", "webrtc", "whisper"] },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "soundfile" },
@@ -4193,6 +4193,7 @@ requires-dist = [
     { name = "pipecat-ai", extras = ["openai"] },
     { name = "pipecat-ai", extras = ["runner"] },
     { name = "pipecat-ai", extras = ["silero"] },
+    { name = "pipecat-ai", extras = ["webrtc"] },
     { name = "pipecat-ai", extras = ["webrtc"], marker = "extra == 'webrtc'" },
     { name = "pipecat-ai", extras = ["whisper"] },
     { name = "pipecat-ai", extras = ["xtts"], marker = "extra == 'xtts'" },
