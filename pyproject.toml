@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pipecat-ai[local]",
+    "pipecat-ai[mcp]",
     "pipecat-ai[silero]",
     "pipecat-ai[whisper]",
     "pipecat-ai[openai]",

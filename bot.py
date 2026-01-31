@@ -26,6 +26,9 @@ KOKORO_SPEED = float(os.getenv("KOKORO_SPEED", "1.0"))
 PIPER_BASE_URL = os.getenv("PIPER_BASE_URL", "").rstrip("/")
 XTTS_BASE_URL = (os.getenv("XTTS_BASE_URL") or "").rstrip("/")
 
+# MCP: optional SSE server URL (e.g. http://localhost:8081/sse)
+MCP_SERVER_URL = (os.getenv("MCP_SERVER_URL", "") or "http://localhost:8081/sse").strip()
+
 # Personality: assistant, jarvis, storyteller, conspiracy, unhinged, sexy, argumentative
 PERSONALITY = (os.getenv("PERSONALITY", "") or "assistant").strip().lower()
 VOICE_GENDER = (os.getenv("VOICE_GENDER", "") or "").strip().lower()  # male | female; default per personality
@@ -253,6 +256,18 @@ async def run_bot(transport):
         base_url=LM_STUDIO_BASE_URL,
     )
 
+    # MCP: connect to SSE server at startup and register tools with LLM
+    tools = None
+    if MCP_SERVER_URL:
+        try:
+            from mcp.client.session_group import SseServerParameters
+            from pipecat.services.mcp_service import MCPClient
+            mcp = MCPClient(server_params=SseServerParameters(url=MCP_SERVER_URL))
+            tools = await mcp.register_tools(llm)
+            logger.info(f"MCP tools registered from {MCP_SERVER_URL}")
+        except Exception as e:
+            logger.warning(f"MCP connection failed ({MCP_SERVER_URL}): {e}. Running without tools.")
+
     # TTS: Kokoro (in-process), Piper, or XTTS (server)
     import aiohttp
     pcfg = get_personality_config()
@@ -266,7 +281,7 @@ async def run_bot(transport):
                 sample_rate=24000,
                 speed=KOKORO_SPEED,
             )
-            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"], tools)
         except ImportError:
             logger.error("Kokoro TTS: install with  uv sync --extra kokoro  (or pip install kokoro soundfile)")
             raise SystemExit(1)
@@ -278,7 +293,7 @@ async def run_bot(transport):
                 voice_id="default",
                 aiohttp_session=session,
             )
-            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"], tools)
     elif PIPER_BASE_URL:
         from pipecat.services.piper.tts import PiperTTSService
         async with aiohttp.ClientSession() as session:
@@ -286,7 +301,7 @@ async def run_bot(transport):
                 base_url=PIPER_BASE_URL,
                 aiohttp_session=session,
             )
-            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"])
+            await _run_pipeline(transport, stt, llm, tts, pcfg["system"], pcfg["greeting"], tools)
     else:
         logger.error(
             "Set TTS=kokoro (default) or PIPER_BASE_URL or XTTS_BASE_URL. For Kokoro: uv sync --extra kokoro"
@@ -294,7 +309,7 @@ async def run_bot(transport):
         raise SystemExit(1)
 
 
-async def _run_pipeline(transport, stt, llm, tts, system_content: str, greeting_content: str):
+async def _run_pipeline(transport, stt, llm, tts, system_content: str, greeting_content: str, tools=None):
     from loguru import logger
     import time
     from pipecat.frames.frames import (
@@ -351,11 +366,13 @@ async def _run_pipeline(transport, stt, llm, tts, system_content: str, greeting_
                 self._first_audio_seen = False
 
     # System + initial user so roles alternate (user/assistant). Stops "Conversation roles must alternate" after first reply.
+    if tools:
+        system_content = system_content.rstrip() + "\n\nYou have access to MCP tools. Use them when helpful; keep spoken replies concise."
     messages = [
         {"role": "system", "content": system_content},
         {"role": "user", "content": greeting_content},
     ]
-    context = LLMContext(messages)
+    context = LLMContext(messages, tools=tools) if tools else LLMContext(messages)
     # Use smart-turn in user aggregator (new API); avoid deprecated turn_analyzer on transport
     from pipecat.processors.aggregators.llm_response_universal import LLMUserAggregatorParams
     user_params = LLMUserAggregatorParams()
