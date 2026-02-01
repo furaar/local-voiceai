@@ -1,0 +1,1 @@
+uv run python bot.py --local

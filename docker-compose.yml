@@ -1,6 +1,14 @@
 # Spark-voice: WebRTC client at http://localhost:7860/client
 # LM Studio must be running on the host (e.g. port 3000). GPU is passed through for Whisper/acceleration.
+# SearXNG: optional search backend for MCP search tool (multi-mcp). Set SEARX_URL=http://localhost:8082 in multi-mcp .env.
 services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8082:8080"
+    restart: unless-stopped
+
   spark-voice:
     build: .
     image: spark-voice:latest
