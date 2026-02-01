@@ -29,6 +29,9 @@ XTTS_BASE_URL = (os.getenv("XTTS_BASE_URL") or "").rstrip("/")
 # MCP: optional SSE server URL (e.g. http://localhost:8081/sse)
 MCP_SERVER_URL = (os.getenv("MCP_SERVER_URL", "") or "http://localhost:8081/sse").strip()
 
+# Context cut-off: max messages sent to the LLM (0 = no limit)
+CONTEXT_MAX_MESSAGES = int(os.getenv("CONTEXT_MAX_MESSAGES", "0"))
+
 # Personality: assistant, jarvis, storyteller, conspiracy, unhinged, sexy, argumentative
 PERSONALITY = (os.getenv("PERSONALITY", "") or "assistant").strip().lower()
 VOICE_GENDER = (os.getenv("VOICE_GENDER", "") or "").strip().lower()  # male | female; default per personality
@@ -279,6 +282,12 @@ async def run_bot(transport):
     class _VisionToolAwareLLM(OpenAILLMService):
         async def get_chat_completions(self, params_from_context: OpenAILLMInvocationParams):
             params = copy.deepcopy(params_from_context)
+            msgs = params.get("messages") or []
+            if msgs and CONTEXT_MAX_MESSAGES > 0 and len(msgs) > CONTEXT_MAX_MESSAGES:
+                if msgs[0].get("role") == "system":
+                    params["messages"] = [msgs[0]] + msgs[-(CONTEXT_MAX_MESSAGES - 1) :]
+                else:
+                    params["messages"] = msgs[-CONTEXT_MAX_MESSAGES:]
             if params.get("messages"):
                 params["messages"] = _inject_vision_tool_images(params["messages"])
             return await super().get_chat_completions(params)
