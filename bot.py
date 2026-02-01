@@ -368,8 +368,10 @@ async def _run_pipeline(transport, stt, llm, tts, system_content: str, greeting_
     # System + initial user so roles alternate (user/assistant). Stops "Conversation roles must alternate" after first reply.
     if tools:
         system_content = system_content.rstrip() + (
-            "\n\nYou have access to MCP tools. Use them when helpful; keep spoken replies concise. "
-            "You can call multiple tools in one turn if needed (e.g. search then summarize); the system will run them and give you the results before you reply."
+            "\n\nYou have access to MCP tools. "
+            "Before calling a tool, say only one short sentence describing what you are doing (e.g. 'Searching the web for the latest news on Labor Minister.' or 'Checking the opening hours of Shopping on Clyde for you.'). No extra explanation. "
+            "After you have tool results, give a concise summary in plain spoken language. No markdown (no bullets, asterisks, or code). Then suggest exactly two follow-up actions the user might want based on the data (e.g. 'Would you like me to dig into the first article or check another source?'). "
+            "When the user asks for web info: first call the search tool with a query, then for up to 5 result URLs call the fetch_page tool to get full page content, then summarize and offer two follow-up options."
         )
     messages = [
         {"role": "system", "content": system_content},
