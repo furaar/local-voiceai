@@ -247,10 +247,43 @@ async def run_bot(transport):
         compute_type=_compute,
     )
 
-    # LLM: LM Studio (OpenAI-compatible)
+    # LLM: LM Studio (OpenAI-compatible). Inject screenshot tool data URLs as OpenAI vision messages.
     from pipecat.services.openai.llm import OpenAILLMService
+    from pipecat.adapters.services.open_ai_adapter import OpenAILLMInvocationParams
+    import copy
 
-    llm = OpenAILLMService(
+    def _inject_vision_tool_images(messages: list) -> list:
+        """Turn tool messages whose content is a data URL into tool + assistant + user (OpenAI image_url format) so the model sees the image."""
+        out = []
+        for m in messages:
+            if m.get("role") != "tool" or not isinstance(m.get("content"), str):
+                out.append(m)
+                continue
+            raw = m["content"].strip()
+            if raw.startswith('"') and raw.endswith('"'):
+                raw = raw[1:-1].replace('\\"', '"').strip()
+            if not raw.startswith("data:image/"):
+                out.append(m)
+                continue
+            out.append({"role": "tool", "content": "Screenshot attached for you to view.", "tool_call_id": m["tool_call_id"]})
+            out.append({"role": "assistant", "content": "Screenshot captured."})
+            out.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Here is the screenshot from the tool. Describe what you see."},
+                    {"type": "image_url", "image_url": {"url": raw}},
+                ],
+            })
+        return out
+
+    class _VisionToolAwareLLM(OpenAILLMService):
+        async def get_chat_completions(self, params_from_context: OpenAILLMInvocationParams):
+            params = copy.deepcopy(params_from_context)
+            if params.get("messages"):
+                params["messages"] = _inject_vision_tool_images(params["messages"])
+            return await super().get_chat_completions(params)
+
+    llm = _VisionToolAwareLLM(
         model=LM_MODEL,
         api_key=OPENAI_API_KEY,
         base_url=LM_STUDIO_BASE_URL,
