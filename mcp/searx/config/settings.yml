@@ -1,0 +1,11 @@
+# SearXNG config for multi-mcp search tool (port 8082).
+use_default_settings: true
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "multi-mcp-searxng-local-change-if-public"
+  limiter: false

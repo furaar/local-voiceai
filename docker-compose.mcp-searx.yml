@@ -1,0 +1,32 @@
+# MCP + SearXNG only (run voice bot on host; MCP and SearX in Docker).
+# From repo root: docker compose -f docker-compose.mcp-searx.yml up -d --build
+# MCP SSE: http://localhost:8081/sse
+# SearXNG: http://localhost:8082
+services:
+  multi-mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mcp
+    image: voiceai-mcp:latest
+    container_name: multi-mcp
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      - MCP_CONFIG=/app/config/mcp.json
+      - SEARX_URL=http://searxng:8080
+    depends_on:
+      - searxng
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./config/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8082/
+    restart: unless-stopped

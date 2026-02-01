@@ -1,0 +1,13 @@
+{
+"mcpServers": {
+    "weather": {
+      "url": "http://127.0.0.1:9080/sse"
+    },
+    "calculator": {
+      "command": "python",
+      "args": [
+     "./tools/calculator.py"
+      ]
+    }
+  }
+}

@@ -2,11 +2,12 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-Pipecat-based voice agent with Silero VAD, Whisper STT, LM Studio LLM, and Kokoro/Piper/XTTS TTS. Run via CLI (mic/speaker), WebRTC (browser), or Daily.
+Pipecat-based voice agent with Silero VAD, Whisper STT, LM Studio LLM, and Kokoro/Piper/XTTS TTS, plus a **Multi-MCP** proxy server for tools (search, screenshot, etc.). [run.sh](run.sh) starts both MCP and the voice bot. Run via CLI (mic/speaker), WebRTC (browser), or Daily. One repo: voice app + MCP server; unified launcher and Docker Compose.
 
 ## Table of contents
 
 - [Features](#features)
+- [Project structure](#project-structure)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Installation](#installation)
@@ -24,9 +25,19 @@ Pipecat-based voice agent with Silero VAD, Whisper STT, LM Studio LLM, and Kokor
 - **Multiple TTS**: Kokoro (default, in-process), [Piper](https://github.com/rhasspy/piper), or [XTTS](https://github.com/coqui-ai/xtts-streaming-server).
 - **Personalities**: `assistant`, `jarvis`, `storyteller`, `conspiracy`, `unhinged`, `sexy`, `argumentative` — each with distinct Kokoro voice pairs.
 - **Modes**: CLI (local mic/speaker), WebRTC (browser client), or Daily (production-style); same pipeline.
-- **Optional MCP tools**: Connect to an SSE MCP server (`MCP_SERVER_URL`); LLM can use tools (e.g. search, fetch page).
-- **Docker**: Single-image run or [docker-compose.yml](docker-compose.yml) with optional [SearXNG](https://github.com/searxng/searxng) for MCP search.
+- **MCP tools**: [run.sh](run.sh) starts the Multi-MCP server and the voice bot; the bot connects at `MCP_SERVER_URL` so the LLM can use tools (search, fetch page, etc.).
+- **Docker**: [docker-compose.yml](docker-compose.yml) runs spark-voice + multi-mcp + [SearXNG](https://github.com/searxng/searxng); [docker-compose.mcp-searx.yml](docker-compose.mcp-searx.yml) runs MCP + SearX only (bot on host).
 - **AMD ROCm**: GPU passthrough in Docker; `HSA_OVERRIDE_GFX_VERSION` for older GPUs (e.g. RX 6600).
+
+## Project structure
+
+- **config/** — MCP server config (`config/mcp.json`; override with `MCP_CONFIG`), SearXNG `settings.yml`.
+- **docker/** — [docker/Dockerfile.voice](docker/Dockerfile.voice) (Spark), [docker/Dockerfile.mcp](docker/Dockerfile.mcp) (Multi-MCP).
+- **src/** — Multi-MCP library (`src/multimcp/`, `src/utils/`).
+- **tools/** — MCP tool scripts (screenshot, search, etc.) used by multi-mcp when running `config/mcp.json`.
+- **bot.py**, **main_mcp.py** — Voice app and MCP server entry points; [run.sh](run.sh) starts both (MCP in background, then voice bot).
+
+The former **mcp/** subproject has been merged into this layout (`config/`, `src/`, `tools/`, `main_mcp.py`). You can remove the `mcp/` directory if it still exists.
 
 ## Requirements
 
@@ -111,7 +122,32 @@ Full gist: [AMD ROCm installation (HX99G)](https://gist.github.com/furaar/ee05a5
 
 ## Architecture
 
-Audio flows from the transport (LocalAudio, WebRTC, or Daily) through Silero VAD and LocalSmartTurnAnalyzerV3 (smart-turn), then Whisper STT, LM Studio LLM, and Kokoro/Piper/XTTS TTS, back to the same transport. When `MCP_SERVER_URL` is set, MCP tools are registered with the LLM so it can call them mid-conversation; tool results re-enter the LLM before TTS.
+**Repo layout and run flow** (from merged voice + MCP project):
+
+```mermaid
+flowchart TB
+  subgraph repo [voiceai repo]
+    config[config/]
+    docker[docker/]
+    src[src/multimcp, utils]
+    tools[tools/]
+    bot[bot.py]
+    main_mcp[main_mcp.py]
+    run_sh[run.sh]
+  end
+  run_sh --> main_mcp
+  run_sh --> bot
+  main_mcp --> config
+  main_mcp --> src
+  config --> mcp_json[config/mcp.json]
+  mcp_json --> tools
+  docker --> compose_main[docker-compose.yml]
+  docker --> compose_mcp[docker-compose.mcp-searx.yml]
+```
+
+[run.sh](run.sh) starts the Multi-MCP server in the background (SSE at port 8081), then the voice bot. The bot connects to MCP at `MCP_SERVER_URL` and registers tools with the LLM.
+
+**Voice pipeline**: Audio flows from the transport (LocalAudio, WebRTC, or Daily) through Silero VAD and LocalSmartTurnAnalyzerV3 (smart-turn), then Whisper STT, LM Studio LLM, and Kokoro/Piper/XTTS TTS, back to the same transport. MCP tools are registered with the LLM so it can call them mid-conversation; tool results re-enter the LLM before TTS.
 
 ```mermaid
 flowchart LR
@@ -127,7 +163,7 @@ flowchart LR
 - **VAD / turn**: Silero VAD + LocalSmartTurnAnalyzerV3.
 - **STT**: Whisper (Faster Whisper); GPU when available (CUDA/ROCm), else CPU.
 - **LLM**: LM Studio via OpenAI-compatible API.
-- **MCP tools** (optional): When `MCP_SERVER_URL` is set, tools (e.g. search, fetch page) are registered with the LLM; the LLM can invoke them and use results before replying.
+- **MCP tools**: Started by [run.sh](run.sh); tools (e.g. search, fetch page) are registered with the LLM; the LLM can invoke them and use results before replying.
 - **TTS**: Kokoro (in-process), or Piper/XTTS (HTTP server).
 - **Output**: Same transport (speaker or browser).
 
@@ -138,10 +174,10 @@ cp .env.example .env
 # Edit .env: set LM_MODEL (and optionally OPENAI_API_KEY) to match your LM Studio model
 uv sync
 # Start LM Studio on port 3000 and load the model
-uv run python bot.py          # WebRTC → http://localhost:7860/client
-# or
-uv run python bot.py --local  # CLI (mic and speaker)
+./run.sh   # MCP in background, then CLI voice (mic and speaker)
 ```
+
+For WebRTC in the browser: `uv run python bot.py` → http://localhost:7860/client.
 
 ## Installation
 
@@ -178,6 +214,7 @@ Copy [.env.example](.env.example) to `.env` and set the following.
 | `PIPER_BASE_URL` | Piper server URL when `TTS=piper` |
 | `XTTS_BASE_URL` | XTTS server URL when `TTS=xtts` |
 | `MCP_SERVER_URL` | Optional SSE MCP server (e.g. `http://localhost:8081/sse`); empty = no tools |
+| `MCP_CONFIG` | Optional path to MCP server config (default `config/mcp.json`; resolved from project root) |
 | `CONTEXT_MAX_MESSAGES` | Max messages sent to LLM (0 = no limit); system message always kept |
 | `HSA_OVERRIDE_GFX_VERSION` | For AMD RX 6600 etc. (e.g. `10.3.0`) |
 
@@ -192,27 +229,55 @@ Each personality has a distinct Kokoro voice pair. Examples: **assistant** af_he
 
 ### MCP
 
-When `MCP_SERVER_URL` is set (e.g. `http://localhost:8081/sse`), the bot connects at startup and registers MCP tools with the LLM so it can call them (e.g. search, fetch page). For search-backed tools you can run [docker-compose.yml](docker-compose.yml) with the optional **SearXNG** service and point your MCP stack (e.g. multi-mcp) at `SEARX_URL=http://localhost:8082`.
+[run.sh](run.sh) starts the Multi-MCP server and the voice bot. The bot connects at `MCP_SERVER_URL` (e.g. `http://localhost:8081/sse`) and registers MCP tools with the LLM (e.g. search, fetch page). MCP config defaults to `config/mcp.json`; override with `MCP_CONFIG`. For search-backed tools use [docker-compose.yml](docker-compose.yml) or [docker-compose.mcp-searx.yml](docker-compose.mcp-searx.yml) so SearXNG is available and set `SEARX_URL` for the MCP search tool.
 
 ## Running the agent
 
-| Mode | Command | Access |
-|------|---------|--------|
-| **Web client (default)** | `uv run python bot.py` or `uv run python bot.py -t webrtc` | http://localhost:7860/client |
-| **CLI** | `uv run python bot.py --local` | Mic and speaker on this machine |
-| **Interactive** | `uv run python bot.py -i` | Prompts for personality, mode, speed, voice gender |
-| **Daily** | `uv run python bot.py -t daily` | Requires `DAILY_API_KEY` and `pipecat-ai[daily]`; see [UPGRADE.md](UPGRADE.md) |
-
-**Convenience**: [run.sh](run.sh) runs local mode (`uv run python bot.py --local`).
-
-## Docker
-
-**Single container**
-
-Build and run with LM Studio on the host (port 3000):
+**Default**: From repo root, run:
 
 ```bash
-docker build -t spark-voice .
+./run.sh
+```
+
+This starts the Multi-MCP server in the background (SSE at http://localhost:8081/sse), then the voice bot with CLI mic/speaker. On exit, the script kills the MCP process.
+
+**Other ways to run**:
+
+| Mode | Command | Access |
+|------|---------|--------|
+| **Web client** | `uv run python bot.py` or `uv run python bot.py -t webrtc` | http://localhost:7860/client |
+| **Interactive** | `uv run python bot.py -i` | Prompts for personality, mode, speed, voice gender |
+| **Daily** | `uv run python bot.py -t daily` | Requires `DAILY_API_KEY` and `pipecat-ai[daily]`; see [UPGRADE.md](UPGRADE.md) |
+| **Voice only** (no MCP) | `uv run python bot.py --local` | CLI mic/speaker; set `MCP_SERVER_URL=` if you don't want tools |
+| **MCP only** | `uv run python main_mcp.py --transport sse --port 8081 --host 0.0.0.0` | MCP SSE at http://localhost:8081/sse |
+
+Run from repo root so `config/mcp.json` and `./tools/` resolve.
+
+## Docker (WIP)
+
+**Main stack (voice + MCP + SearXNG)**
+
+[docker-compose.yml](docker-compose.yml) defines **spark-voice** (built from [docker/Dockerfile.voice](docker/Dockerfile.voice)), **multi-mcp** (from [docker/Dockerfile.mcp](docker/Dockerfile.mcp), port 8081), and **SearXNG** (port 8082):
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:7860/client. Voice container uses `MCP_SERVER_URL=http://multi-mcp:8081/sse`. For CPU-only, comment out the `devices` section for spark-voice. For AMD GPUs (e.g. RX 6600), set `HSA_OVERRIDE_GFX_VERSION=10.3.0` in `.env`.
+
+**MCP + SearX only (bot on host -- recommended)**
+
+Run MCP and SearX in Docker while running the voice bot on the host:
+
+```bash
+docker compose -f docker-compose.mcp-searx.yml up -d --build
+./run.sh
+```
+
+**Single voice image (no MCP in Docker)**
+
+```bash
+docker build -f docker/Dockerfile.voice -t spark-voice .
 docker run -p 7860:7860 \
   -e LM_STUDIO_BASE_URL=http://host.docker.internal:3000/v1 \
   -e OPENAI_API_KEY=lm-studio \
@@ -221,16 +286,6 @@ docker run -p 7860:7860 \
 ```
 
 On Linux, add `--add-host=host.docker.internal:host-gateway` if needed. Client: http://localhost:7860/client.
-
-**Docker Compose**
-
-[docker-compose.yml](docker-compose.yml) defines **spark-voice** (built from [Dockerfile](Dockerfile), env from `.env`, GPU devices for ROCm) and optional **SearXNG** (port 8082) for MCP search:
-
-```bash
-docker compose up -d --build
-```
-
-Then open http://localhost:7860/client. For CPU-only, comment out the `devices` section in `docker-compose.yml`. For AMD GPUs (e.g. RX 6600), set `HSA_OVERRIDE_GFX_VERSION=10.3.0` in `.env`. The image runs the runner with `--host 0.0.0.0` so the client is reachable from the host.
 
 ## What you see when you run
 
@@ -253,7 +308,7 @@ If the LLM gives a long monologue instead of a short hello, the model may be ign
 - **LM Studio**: Server must be running on port 3000 with the model loaded; `LM_MODEL` must match the model id in LM Studio.
 - **ROCm**: Run `./scripts/check_system.sh` and set `HSA_OVERRIDE_GFX_VERSION=10.3.0` for RX 6600.
 - **Portaudio**: On Linux install `portaudio19-dev` for local audio. Use `CC=gcc uv sync` if the pyaudio build fails.
-- **MCP tools not available**: Ensure `MCP_SERVER_URL` is correct and the MCP SSE server is running.
+- **MCP tools not available**: Ensure `MCP_SERVER_URL` is correct (default `http://localhost:8081/sse`) and run with `./run.sh` so MCP starts in the background. Logs from the MCP server are prefixed with `mcp |`.
 
 ## See also
 

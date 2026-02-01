@@ -1,16 +1,28 @@
-# Spark-voice: WebRTC client at http://localhost:7860/client
-# LM Studio must be running on the host (e.g. port 3000). GPU is passed through for Whisper/acceleration.
-# SearXNG: optional search backend for MCP search tool (multi-mcp). Set SEARX_URL=http://localhost:8082 in multi-mcp .env.
+# Main stack: spark-voice + multi-mcp + optional SearXNG.
+# From repo root: docker compose up -d --build
+# Voice client: http://localhost:7860/client
+# MCP SSE: http://localhost:8081/sse
+# SearXNG (for MCP search tool): http://localhost:8082
 services:
-  searxng:
-    image: searxng/searxng:latest
-    container_name: searxng
+  multi-mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mcp
+    image: voiceai-mcp:latest
+    container_name: multi-mcp
     ports:
-      - "8082:8080"
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      - MCP_CONFIG=/app/config/mcp.json
+      - SEARX_URL=http://searxng:8080
     restart: unless-stopped
 
   spark-voice:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.voice
     image: spark-voice:latest
     container_name: spark-voice
     ports:
@@ -19,12 +31,24 @@ services:
       - .env
     environment:
       - LM_STUDIO_BASE_URL=http://host.docker.internal:3000/v1
-      # AMD ROCm: set in .env for older GPUs (e.g. RX 6600) so GPU is used: HSA_OVERRIDE_GFX_VERSION=10.3.0
+      - MCP_SERVER_URL=http://multi-mcp:8081/sse
       - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # AMD ROCm: direct device passthrough. Comment out for CPU-only.
     devices:
       - /dev/kfd
       - /dev/dri
+    depends_on:
+      - multi-mcp
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./config/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8082/
     restart: unless-stopped

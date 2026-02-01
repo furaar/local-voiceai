@@ -1,0 +1,16 @@
+{
+"mcpServers": {
+    "unit_convertor":  {
+      "command": "python",
+      "args": [
+    "./tools/unit_convertor.py"
+      ]
+    },
+    "calculator": {
+      "command": "python",
+      "args": [
+     "./tools/calculator.py"
+      ]
+    }
+  }
+}

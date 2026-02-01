@@ -1,0 +1,22 @@
+{
+"mcpServers": {
+    "screenshot": {
+      "command": "python",
+      "args": ["./tools/screenshot.py"],
+      "env": { "DISPLAY": ":0" }
+    },
+    "search": {
+      "command": "python",
+      "args": ["./tools/search.py"],
+      "env": { "SEARX_URL": "http://localhost:8082" }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/x/Desktop"
+      ]
+    }
+  }
+}

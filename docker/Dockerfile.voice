@@ -1,4 +1,5 @@
 # Spark-voice: WebRTC by default (browser client at :7860/client)
+# Build from repo root: docker build -f docker/Dockerfile.voice .
 # LM Studio must be reachable (e.g. host: set LM_STUDIO_BASE_URL=http://host.docker.internal:3000/v1)
 FROM python:3.12-slim-bookworm
 
@@ -16,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Project files
+# Project files (voice app only)
 COPY pyproject.toml uv.lock* ./
-COPY bot.py kokoro_tts.py ./
+COPY bot.py kokoro_tts.py dev_log.py ./
 
 # Install with webrtc extra so runner serves the web client
 RUN uv sync --no-dev --extra webrtc
@@ -26,5 +27,4 @@ RUN uv sync --no-dev --extra webrtc
 EXPOSE 7860
 
 # Bind to 0.0.0.0 so port-forward from host works (runner defaults to localhost).
-# Override: docker run ... python bot.py --local  or  python bot.py -t daily (Spark stays the same)
 CMD ["uv", "run", "python", "bot.py", "--host", "0.0.0.0"]

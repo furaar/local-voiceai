@@ -1,7 +1,7 @@
 [project]
 name = "spark-voice"
 version = "0.1.0"
-description = "Spark voice agent (Pipecat: Silero VAD, Whisper, LM Studio, TTS)"
+description = "Spark voice agent (Pipecat: Silero VAD, Whisper, LM Studio, TTS) + Multi-MCP proxy"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,14 +17,34 @@ dependencies = [
     "kokoro>=0.9.4",
     "soundfile",
     "pip>=25.3",
+    # Multi-MCP server (main_mcp.py)
+    "starlette",
+    "uvicorn",
+    "pydantic-settings",
+    "rich",
+    "httpx-sse",
+    "sse-starlette",
+    "langchain-mcp-adapters",
+    # MCP tools (tools/*.py when run as subprocesses)
+    "fastmcp",
+    "duckduckgo-search>=7.0.0",
+    "trafilatura>=2.0.0",
 ]
 
 [project.optional-dependencies]
 webrtc = ["pipecat-ai[webrtc]"]
 xtts = ["pipecat-ai[xtts]"]
-dev = []
+dev = ["pytest", "pytest-asyncio", "httpx"]
 
 [project.scripts]
 spark = "bot:main"
+mcp = "main_mcp:main"
 
 # Script-only app: run with uv run python bot.py or uv run spark
+# MCP server: uv run python main_mcp.py or uv run mcp
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::pydantic.warnings.PydanticDeprecatedSince20"]
